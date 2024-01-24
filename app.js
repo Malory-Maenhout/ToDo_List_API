@@ -1,28 +1,40 @@
-import {createServer} from "node:http"
-import { findTodos } from "./functions/todos_storage.js"
-import { create } from "node:domain"
+import { createServer } from "node:http"
+import { create, index, remove, update } from "./functions/api/todos.js"
+import { NotFoundError } from "./functions/errors.js"
 
 createServer(async (request, response) => {
-    response.setHeader('Content-Type', 'application/json')
-    const url = new URL(request.url, 'http://${req.headers.host}')
-    if (url.pathname === '/^todos')
-    {
-        if (request.method === 'GET')
-        {
-            const todos = await findTodos()
-            response.write(JSON.stringify(todos))
+    try {
+        response.setHeader('Content-Type', 'application/json')
+        const url = new URL(request.url, `http://${request.headers.host}`)
+        const endpoint = `${request.method}:${url.pathname}`
+        let results
+        switch (endpoint) {
+            case 'GET:/todos':  
+                results = await index(request, response)
+                break;
+            case 'POST:/todos':  
+                results = await create(request, response)
+                break;
+            case 'PUT:/todos':  
+                results = await update(request, response, url)
+                break;
+            case 'DELETE:/todos':  
+                results = await remove(request, response, url)
+                break;
+            default:
+                response.writeHead(404)
+        } 
+        if(results) {
+            response.write(JSON.stringify(results))
         }
-        else if (request.method === 'POST')
-        {
-            const todo = await createTodo(await json(request))
-            response.write(JSON.stringify(todo))
+        
+    } catch (e) {
+        if (e instanceof NotFoundError) {
+            response.writeHead(404)
+        } else {
+            throw e
         }
     }
-    else 
-    {
-        response.writeHead(404)
-    }
-
-    request.end()
+    response.end()
 }).listen(3000)
 

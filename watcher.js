@@ -1,30 +1,32 @@
-import {spawn} from 'node:child_process'
+import { spawn } from 'node:child_process'
+import { watch } from 'node:fs/promises'
 
 const [node, _, file] = process.argv
 
 function spawnNode () {
-    const pr = spawn(node, [file])
-    pr.stdout.pipe(process.stdout)
-    pr.stderr.pipe(process.stderr)
+    const childProcess = spawn(node, [file])
+    childProcess.stdout.on('data', (data) => {
+        console.log(data.toString('utf8'))
+    })
 
-    pr.stderr.on('data', (data) => {
+    childProcess.stderr.on('data', (data) => {
         console.error(data.toString('utf8'))
     })
 
-    pr.on('close', (code) => {
-        if (code !== null) {
-            process.exit(code)
+    childProcess.on('close', (code) => {
+        if (code > 0) {
+            throw new Error('Process exited : ' + code)
         }
     })
 
-    return pr
+    return childProcess
 }
 
 let childNodeProcess = spawnNode()
 const watcher = watch('./', {recursive: true})
 for await (const event of watcher) {
-    if (event.filename.endswith('.js')) {
-        childNodeProcess.kill('SIGKILL')
+    if (event.filename.endsWith('.js')) {
+        childNodeProcess.kill()
         childNodeProcess = spawnNode()
     }
 }
